@@ -34,7 +34,7 @@ int main() {
   }
   int stat_interval = 100;
   cout << "Warming up..." << endl;
-  std::this_thread::sleep_for(std::chrono::seconds(3));
+  std::this_thread::sleep_for(std::chrono::seconds(2));
   //Start capture
   auto t_start = std::chrono::high_resolution_clock::now();
   auto t1 = t_start;
