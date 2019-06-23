@@ -8,7 +8,7 @@
 
 #include "motion_detector.h"
 #include <opencv2/core/mat.hpp>
-#include <opencv2/video/background_segm.hpp>
+#include <opencv2/bgsegm.hpp>
 #include "boost/lockfree/spsc_queue.hpp"
 #include <thread>
 
@@ -17,12 +17,17 @@ namespace alphaeye {
 class BGSMotionDetector : public MotionDetector {
  public:
 
-  explicit BGSMotionDetector(VideoOutputNode *recorder,
-                             int sample_interval = 2,
-                             int history = 50,
-                             double threshold = 5,
-                             int cooldown_secs = 5,
-                             bool enable_roi_drawing = false);
+  explicit BGSMotionDetector(
+      VideoOutputNode *recorder,
+      int sample_interval = 2,
+      double threshold = 5,
+      int cooldown_secs = 5,
+      bool enable_roi_drawing = false,
+      int history = 50,
+      int nmixtures = 5,
+      double backgroundRatio = 0.7,
+      double noiseSigma = 0.0
+  );
 
   ~BGSMotionDetector() override;
 

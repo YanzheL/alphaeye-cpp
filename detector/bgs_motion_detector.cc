@@ -4,7 +4,6 @@
 // Created by LI YANZHE on 6/23/19.
 // =======================================================================
 #include "bgs_motion_detector.h"
-#include <opencv2/bgsegm.hpp>
 #include <iostream>
 #include "util/util.h"
 
@@ -12,19 +11,24 @@ using namespace std;
 using namespace cv;
 namespace alphaeye {
 
-BGSMotionDetector::BGSMotionDetector(VideoOutputNode *recorder,
-                                     int sample_interval,
-                                     int history,
-                                     double threshold,
-                                     int cooldown_secs,
-                                     bool enable_roi_drawing)
+BGSMotionDetector::BGSMotionDetector(
+    VideoOutputNode *recorder,
+    int sample_interval,
+    double threshold,
+    int cooldown_secs,
+    bool enable_roi_drawing,
+    int history,
+    int nmixtures,
+    double backgroundRatio,
+    double noiseSigma
+)
     : MotionDetector(recorder),
       history_{history},
       threshold_{threshold},
       cooldown_secs_{cooldown_secs},
       sample_interval_{sample_interval},
       enable_roi_drawing_{enable_roi_drawing} {
-  engine_ = cv::bgsegm::createBackgroundSubtractorMOG();
+  engine_ = cv::bgsegm::createBackgroundSubtractorMOG(history, nmixtures, backgroundRatio, noiseSigma);
   stop_requested_ = false;
   worker_thread_ = thread(&BGSMotionDetector::_worker, this);
   cout << "BGSMotionDetector created" << endl;
