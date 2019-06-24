@@ -36,6 +36,8 @@ add_executable(
         util/util.h
         io_node/video_output_node.cc
         io_node/video_output_node.h
+        controller/detector_controller.cc
+        controller/detector_controller.h
 )
 
 target_link_libraries(alphaeye_cpp opencv_world pthread ${Boost_LIBRARIES} ${raspicam_CV_LIBS})
