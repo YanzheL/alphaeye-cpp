@@ -37,6 +37,12 @@ class VideoOutputNode {
 
   void process(cv::Mat frame, double prob);
 
+ public:
+
+  std::string name;
+
+  std::string out_dir;
+
  protected:
 
   void _worker();
@@ -46,21 +52,19 @@ class VideoOutputNode {
   void _ff_gc();
 
  protected:
-  std::string name;
 //  std::vector<VideoOutputNode *> output_nodes;
   bool enabled_ = false;
   double t_enable_;
   int fps_;
   int width_;
   int height_;
-  std::string out_dir_;
   std::string file_format_;
   std::string cur_file_;
 
   std::thread worker_thread_;
   std::thread ff_thread_;
 
-  std::mutex m;
+  std::mutex m_;
 
   bool stop_requested_ = false;
 

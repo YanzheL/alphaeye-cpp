@@ -11,33 +11,94 @@
 #include <stdlib.h>
 #include <netinet/in.h>
 #include <string.h>
+#include <sys/ioctl.h>
 using namespace std;
 
 namespace alphaeye {
+
 void DetectorController::_worker() {
   cout << "DetectorController worker thread started" << endl;
   int addrlen = sizeof(address);
   const int bsize = 128;
   char buffer[bsize] = {0};
+  fd_set master_set, working_set;
+  FD_ZERO(&master_set);
+  struct timeval timeout;
+  int max_sd = socket_fd_;
+  int rc, desc_ready;
+  FD_SET(socket_fd_, &master_set);
+  bool close_conn;
+  timeout.tv_sec = 5;
+  timeout.tv_usec = 0;
   while (!stop_requested_) {
-    int conn = accept(socket_fd_, (struct sockaddr *) &address, (socklen_t *) &addrlen);
-    if (conn < 0) {
-      cerr << "accept failed" << endl;
-      return;
+    memcpy(&working_set, &master_set, sizeof(master_set));
+    rc = select(max_sd + 1, &working_set, NULL, NULL, &timeout);
+    if (rc < 0) {
+      perror("  select() failed");
+      continue;
+    } else if (rc == 0) {
+      continue;
     }
-    cout << "Accepting new connection" << endl;
-    while (recv(conn, buffer, bsize, 0) > 0) {
-      cout << "Data received = " << string(buffer) << endl;
-      if (strcmp(buffer, "enable") == 0) {
-        detector_->enable();
-        send(conn, "ok", 2, 0);
-      } else if (strcmp(buffer, "disable") == 0) {
-        detector_->disable();
-        send(conn, "ok", 2, 0);
-      } else {
-        send(conn, "unknown", 7, 0);
+    desc_ready = rc;
+    for (int i = 0; i <= max_sd && desc_ready > 0; ++i) {
+      if (FD_ISSET(i, &working_set)) {
+        desc_ready -= 1;
+        if (i == socket_fd_) {
+          printf("  Listening socket is readable\n");
+          int conn;
+          do {
+            conn = accept(socket_fd_, NULL, NULL);
+            if (conn < 0) {
+              if (errno != EWOULDBLOCK) {
+                perror("  accept() failed");
+                stop_requested_ = true;
+              }
+              break;
+            }
+            printf("  New incoming connection - %d\n", conn);
+            FD_SET(conn, &master_set);
+            if (conn > max_sd)
+              max_sd = conn;
+          } while (conn != -1);
+        } else {
+          printf("  Descriptor %d is readable\n", i);
+          close_conn = false;
+          while (true) {
+            rc = recv(i, buffer, sizeof(buffer), 0);
+            if (rc < 0) {
+              if (errno != EWOULDBLOCK) {
+                perror("  recv() failed");
+                close_conn = true;
+              }
+              break;
+            }
+            if (rc == 0) {
+              printf("  Connection closed\n");
+              close_conn = true;
+              break;
+            }
+            int len = rc;
+            printf("  %d bytes received, data = %s\n", len, buffer);
+            string response = _handle_data(buffer);
+            rc = send(i, response.c_str(), response.size(), 0);
+            memset(buffer, 0, bsize);
+            if (rc < 0) {
+              perror("  send() failed");
+              close_conn = true;
+              break;
+            }
+          }
+          if (close_conn) {
+            cout << "Closing " << i << endl;
+            close(i);
+            FD_CLR(i, &master_set);
+            if (i == max_sd) {
+              while (!FD_ISSET(max_sd, &master_set))
+                max_sd -= 1;
+            }
+          }
+        }
       }
-      memset(buffer, 0, bsize);
     }
   }
   cout << "DetectorController worker thread exited" << endl;
@@ -45,22 +106,29 @@ void DetectorController::_worker() {
 
 DetectorController::DetectorController(std::shared_ptr<MotionDetector> detector, int port)
     : detector_{detector} {
-  socket_fd_ = socket(AF_INET, SOCK_STREAM, 0);
-  if (socket_fd_ == 0) {
+  int rc;
+  rc = socket(AF_INET, SOCK_STREAM, 0);
+  if (rc == 0) {
     cerr << "socket failed" << endl;
-    return;
+    exit(1);
   }
-  int opt = 1;
-  if (setsockopt(socket_fd_, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT,
-                 &opt, sizeof(opt))) {
+  socket_fd_ = rc;
+  int opt = 1, on = 1;
+  rc = setsockopt(socket_fd_, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT,
+                  &opt, sizeof(opt));
+  if (rc < 0) {
     cerr << "setsockopt failed" << endl;
-    return;
+    exit(1);
+  }
+  rc = ioctl(socket_fd_, FIONBIO, (char *) &on);
+  if (rc < 0) {
+    perror("ioctl() failed");
+    close(socket_fd_);
+    exit(1);
   }
   address.sin_family = AF_INET;
   address.sin_addr.s_addr = INADDR_ANY;
   address.sin_port = htons(port);
-
-  // Forcefully attaching socket to the port 8080
   if (bind(socket_fd_, (struct sockaddr *) &address,
            sizeof(address)) < 0) {
     cerr << "setsockopt failed" << endl;
@@ -75,7 +143,23 @@ DetectorController::DetectorController(std::shared_ptr<MotionDetector> detector,
 
 DetectorController::~DetectorController() {
   stop_requested_ = true;
-  close(socket_fd_);
   worker_thread_.join();
+  cout << "DetectorController destroyed" << endl;
 }
+std::string DetectorController::_handle_data(std::string data) {
+  if (data == "enable") {
+    detector_->enable();
+    return "ok";
+  } else if (data == "disable") {
+    detector_->disable();
+    return "ok";
+  } else if (data == "is_enabled") {
+    return to_string((int) detector_->isEnabled());
+  } else if (data == "is_recording") {
+    return to_string((int) detector_->isMotionStarted());
+  } else {
+    return "unknown";
+  }
+}
+
 }

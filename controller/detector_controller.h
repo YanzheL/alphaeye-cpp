@@ -24,6 +24,8 @@ class DetectorController {
 
   void _worker();
 
+  std::string _handle_data(std::string data);
+
  protected:
 
   int socket_fd_;
