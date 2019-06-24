@@ -16,6 +16,7 @@ namespace fs = boost::filesystem;
 namespace alphaeye {
 
 void VideoOutputNode::enable() {
+  std::lock_guard<std::mutex> lk(m);
   if (enabled_) {
     cerr << "Recorder is already enabled" << endl;
     return;
@@ -31,7 +32,8 @@ void VideoOutputNode::enable() {
   fs::path full_path = dir / file;
   cur_file_ = full_path.string();
   char pipeline_spec_buf[1000];
-  sprintf(pipeline_spec_buf, pipeline_format.c_str(), fps_, cur_file_.c_str());
+//  sprintf(pipeline_spec_buf, pipeline_format.c_str(), fps_, cur_file_.c_str());
+  sprintf(pipeline_spec_buf, pipeline_format.c_str(), cur_file_.c_str());
   std::string pipeline_spec{pipeline_spec_buf};
   cout << "Opening pipeline [" << pipeline_spec << "]" << endl;
   cur_writer_ = make_shared<cv::VideoWriter>(
@@ -51,6 +53,7 @@ void VideoOutputNode::enable() {
 }
 
 void VideoOutputNode::disable() {
+  std::lock_guard<std::mutex> lk(m);
   if (!enabled_) {
     cout << "Recorder is already disabled!" << endl;
     return;
@@ -76,12 +79,14 @@ void VideoOutputNode::_worker() {
 }
 
 void VideoOutputNode::process(cv::Mat frame, double prob) {
+  std::lock_guard<std::mutex> lk(m);
   if (!enabled_) {
-    cerr << "Recorder is not enabled" << endl;
+//    cerr << "Recorder is not enabled" << endl;
     return;
   }
   avg_prob_ = prob;
   cur_writer_->write(frame);
+
 }
 
 void VideoOutputNode::_ffmpeg_worker(int fps, std::string input, std::string output) {

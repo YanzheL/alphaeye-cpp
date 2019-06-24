@@ -10,13 +10,18 @@ using namespace cv;
 using namespace std;
 
 int main() {
-  int width = 640;
-  int height = 480;
+  int width = 1280;
+  int height = 720;
   int fps = 24;
+  int sample_interval = 10;
+//  int width = 640;
+//  int height = 480;
+//  int fps = 30;
+//  int sample_interval = 2;
 
   std::shared_ptr<MotionDetector> detector = make_shared<BGSMotionDetector>(
       new VideoOutputNode("out0", fps, width, height, "../data"),
-      2);
+      sample_interval);
   detector->enable();
   raspicam::RaspiCam_Cv camera;
   cv::Mat frame;
@@ -48,7 +53,7 @@ int main() {
       double dur = std::chrono::duration<double>(t2 - t1).count();
       cout << "captured "
            << ct
-           << " images, "
+           << " frames, "
            << "FPS = "
            << stat_interval / dur
            << endl;

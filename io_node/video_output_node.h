@@ -60,14 +60,17 @@ class VideoOutputNode {
   std::thread worker_thread_;
   std::thread ff_thread_;
 
+  std::mutex m;
+
   bool stop_requested_ = false;
 
   double avg_prob_ = 0;
+
   const std::string pipeline_format = " appsrc do-timestamp=true is-live=true format=time !"
                                       " videoconvert !"
                                       " video/x-raw, format=I420 !"
-                                      " videorate !"
-                                      " video/x-raw, framerate=%d/1 !"
+                                      //                                      " videorate !"
+                                      //                                      " video/x-raw, framerate=%d/1 !"
                                       " queue !"
                                       " omxh264enc target-bitrate=15000000 control-rate=variable !"
                                       " filesink sync=true location=%s ";
