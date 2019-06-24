@@ -4,6 +4,7 @@
 #include <opencv2/core/mat.hpp>
 #include "detector/bgs_motion_detector.h"
 #include "io_node/video_output_node.h"
+#include "controller/detector_controller.h"
 
 using namespace alphaeye;
 using namespace cv;
@@ -23,10 +24,10 @@ int main() {
       new VideoOutputNode("out0", fps, width, height, "../data"),
       sample_interval);
   detector->enable();
+  DetectorController controller(detector);
   raspicam::RaspiCam_Cv camera;
   cv::Mat frame;
   long ct = 0;
-  //set camera params
   camera.setVerticalFlip(true);
   camera.set(CAP_PROP_FORMAT, CV_8UC3);
   camera.set(CAP_PROP_FRAME_WIDTH, width);

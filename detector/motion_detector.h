@@ -40,6 +40,7 @@ class MotionDetector {
   bool motion_started_ = false;
   bool enabled_ = false;
   std::shared_ptr<VideoOutputNode> recorder_;
+  std::mutex m_;
 
 };
 }

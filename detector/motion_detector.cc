@@ -13,6 +13,7 @@ namespace alphaeye {
 //void MotionDetector::_invokeHooks(const std::string event, void *args)
 
 void MotionDetector::enable() {
+  std::lock_guard<std::mutex> lk(m_);
   if (enabled_) {
     cout << "Detector is already enabled!" << endl;
     return;
@@ -31,6 +32,7 @@ void MotionDetector::enable() {
 //}
 
 void MotionDetector::disable() {
+  std::lock_guard<std::mutex> lk(m_);
   if (!enabled_) {
     cout << "Detector is already disabled!" << endl;
     return;

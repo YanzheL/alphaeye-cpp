@@ -16,7 +16,7 @@ namespace fs = boost::filesystem;
 namespace alphaeye {
 
 void VideoOutputNode::enable() {
-  std::lock_guard<std::mutex> lk(m);
+  std::lock_guard<std::mutex> lk(m_);
   if (enabled_) {
     cerr << "Recorder is already enabled" << endl;
     return;
@@ -27,7 +27,7 @@ void VideoOutputNode::enable() {
   tm *ltm = localtime(&ttm);
   char buffer[100];
   strftime(buffer, sizeof(buffer), file_format_.c_str(), ltm);
-  fs::path dir(out_dir_);
+  fs::path dir(out_dir);
   fs::path file(buffer);
   fs::path full_path = dir / file;
   cur_file_ = full_path.string();
@@ -53,7 +53,7 @@ void VideoOutputNode::enable() {
 }
 
 void VideoOutputNode::disable() {
-  std::lock_guard<std::mutex> lk(m);
+  std::lock_guard<std::mutex> lk(m_);
   if (!enabled_) {
     cout << "Recorder is already disabled!" << endl;
     return;
@@ -79,7 +79,7 @@ void VideoOutputNode::_worker() {
 }
 
 void VideoOutputNode::process(cv::Mat frame, double prob) {
-  std::lock_guard<std::mutex> lk(m);
+  std::lock_guard<std::mutex> lk(m_);
   if (!enabled_) {
 //    cerr << "Recorder is not enabled" << endl;
     return;
@@ -127,7 +127,7 @@ VideoOutputNode::VideoOutputNode(std::string name,
       fps_{fps},
       width_{width},
       height_{height},
-      out_dir_{out_dir},
+      out_dir{out_dir},
       file_format_{file_format} {
   worker_thread_ = thread(&VideoOutputNode::_worker, this);
   ff_thread_ = thread(&VideoOutputNode::_ff_gc, this);
