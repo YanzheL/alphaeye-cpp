@@ -185,7 +185,6 @@ void VideoOutputNode::_ff_gc() {
       } else {
         ff_procs_.push(data);
       }
-
     } else if (stop_requested_) {
       break;
     } else {
@@ -198,17 +197,14 @@ void VideoOutputNode::_make_cur_writer() {
   time_t ttm = std::time(nullptr);
   tm *ltm = localtime(&ttm);
   char buffer[100] = {0};
-  cout << "file_format_2=" << file_format_ << endl;
   strftime(buffer, sizeof(buffer), file_format_.c_str(), ltm);
   fs::path dir(out_dir);
   fs::path file(buffer);
   fs::path full_path = dir / file;
   cur_file_ = full_path.string();
-//  char pipeline_spec_buf[1000];
   stringstream pipeline_spec_buf;
   pipeline_spec_buf << motion_pipe_ << cur_file_ << " ";
   cout << "cur_file_=" << cur_file_ << endl;
-//  sprintf(pipeline_spec_buf, motion_pipe_.c_str(), cur_file_.c_str());
   std::string pipeline_spec = pipeline_spec_buf.str();
   cout << "Opening motion recording pipeline [" << pipeline_spec << "]" << endl;
   motion_writer_ = make_shared<cv::VideoWriter>(

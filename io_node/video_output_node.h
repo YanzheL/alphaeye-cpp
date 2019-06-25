@@ -30,6 +30,8 @@ class VideoOutputNode {
 
   void enable();
 
+  inline bool isEnabled() { return enabled_; }
+
   void process(cv::Mat frame);
 
  public:
@@ -74,7 +76,7 @@ class VideoOutputNode {
                                    " videoconvert !"
                                    " video/x-raw, format=I420 !"
                                    " queue !"
-                                   " omxh264enc target-bitrate=3000000 control-rate=variable !"
+                                   " omxh264enc target-bitrate=17000000 control-rate=variable !"
                                    " filesink sync=true location=";
   const std::string realtime_pipe_ = " appsrc !"
                                      " queue !"

@@ -21,7 +21,7 @@ class MotionDetector {
 
   virtual ~MotionDetector() = default;
 
-  inline bool isMotionStarted() { return has_motion_; }
+  inline bool isMotionStarted() { return recorder_->isEnabled(); }
 
   inline bool isEnabled() { return enabled_; }
 
