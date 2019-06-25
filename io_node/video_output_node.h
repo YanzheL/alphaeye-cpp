@@ -26,9 +26,8 @@ class VideoOutputNode {
 
   ~VideoOutputNode();
 
-  template<typename ...Args>
-  inline bool put(Args...args) {
-    return task_queue_.push(std::make_pair(args...));
+  inline bool put(cv::Mat frame, double prob) {
+    return task_queue_.push(std::make_pair(frame, prob));
   }
 
   void enable();
