@@ -60,14 +60,9 @@ class BGSMotionDetector : public MotionDetector {
   unsigned long cur_motion_frames_ = 1;
   int sample_ct_;
   bool stop_requested_ = false;
-//  bool disable_requested_ = false;
   std::shared_ptr<cv::BackgroundSubtractor> engine_;
-  std::thread worker_thread_;
-  std::thread record_thread_;
+  std::thread analyze_thread_;
   boost::lockfree::spsc_queue<cv::Mat, boost::lockfree::capacity<30>> task_queue_;
-
-  boost::lockfree::spsc_queue<cv::Mat, boost::lockfree::capacity<30>> record_queue_;
-
 };
 
 }

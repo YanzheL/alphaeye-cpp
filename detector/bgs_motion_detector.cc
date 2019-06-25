@@ -30,8 +30,7 @@ BGSMotionDetector::BGSMotionDetector(
       enable_roi_drawing_{enable_roi_drawing} {
   engine_ = cv::bgsegm::createBackgroundSubtractorMOG(history, nmixtures, backgroundRatio, noiseSigma);
   stop_requested_ = false;
-  worker_thread_ = thread(&BGSMotionDetector::_analyze_worker, this);
-  record_thread_ = thread(&BGSMotionDetector::_recording_worker, this);
+  analyze_thread_ = thread(&BGSMotionDetector::_analyze_worker, this);
   cout << "BGSMotionDetector created" << endl;
 }
 
@@ -47,22 +46,20 @@ void BGSMotionDetector::_analyze_worker() {
   cout << "Detector analyze worker thread exited" << endl;
 }
 
-void BGSMotionDetector::_recording_worker() {
-  cout << "Detector record worker thread started" << endl;
-  cv::Mat task;
-  while (true) {
-    if (record_queue_.pop(task)) {
-      if (motion_started_) {
-        recorder_->put(task, sum_prob_ / cur_motion_frames_);
-      }
-    } else if (stop_requested_) {
-      break;
-    } else {
-      std::this_thread::sleep_for(std::chrono::seconds(1));
-    }
-  }
-  cout << "Detector record worker thread exited" << endl;
-}
+//void BGSMotionDetector::_recording_worker() {
+//  cout << "Detector record worker thread started" << endl;
+//  cv::Mat task;
+//  while (true) {
+//    if (record_queue_.pop(task)) {
+//      recorder_->put(task, sum_prob_ / cur_motion_frames_);
+//    } else if (stop_requested_) {
+//      break;
+//    } else {
+//      std::this_thread::sleep_for(std::chrono::seconds(1));
+//    }
+//  }
+//  cout << "Detector record worker thread exited" << endl;
+//}
 
 void BGSMotionDetector::_motionStop() {
   motion_started_ = false;
@@ -111,7 +108,7 @@ void BGSMotionDetector::analyze(const cv::Mat &frame) {
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
   }
   sample_ct_ = (sample_ct_ + 1) % sample_interval_;
-  while (motion_started_ && !record_queue_.push(frame)) {
+  while (!recorder_->put(frame, sum_prob_ / cur_motion_frames_)) {
 //    cout << "blocking2" << endl;
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
   }
@@ -119,8 +116,7 @@ void BGSMotionDetector::analyze(const cv::Mat &frame) {
 
 BGSMotionDetector::~BGSMotionDetector() {
   stop_requested_ = true;
-  worker_thread_.join();
-  record_thread_.join();
+  analyze_thread_.join();
   recorder_->disable();
   if (enabled_) {
     disable();

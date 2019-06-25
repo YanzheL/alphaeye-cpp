@@ -22,7 +22,6 @@ void VideoOutputNode::enable() {
     return;
   }
   cout << "Enabling recorder..." << endl;
-  t_enable_ = epoch_time();
   time_t ttm = std::time(nullptr);
   tm *ltm = localtime(&ttm);
   char buffer[100];
@@ -32,11 +31,11 @@ void VideoOutputNode::enable() {
   fs::path full_path = dir / file;
   cur_file_ = full_path.string();
   char pipeline_spec_buf[1000];
-//  sprintf(pipeline_spec_buf, pipeline_format.c_str(), fps_, cur_file_.c_str());
-  sprintf(pipeline_spec_buf, pipeline_format.c_str(), cur_file_.c_str());
+//  sprintf(pipeline_spec_buf, motion_pipe_.c_str(), fps_, cur_file_.c_str());
+  sprintf(pipeline_spec_buf, motion_pipe_.c_str(), cur_file_.c_str());
   std::string pipeline_spec{pipeline_spec_buf};
-  cout << "Opening pipeline [" << pipeline_spec << "]" << endl;
-  cur_writer_ = make_shared<cv::VideoWriter>(
+  cout << "Opening motion recording pipeline [" << pipeline_spec << "]" << endl;
+  motion_writer_ = make_shared<cv::VideoWriter>(
       pipeline_spec,
       cv::CAP_GSTREAMER,
       0,
@@ -44,7 +43,7 @@ void VideoOutputNode::enable() {
       cv::Size{width_, height_}
   );
 
-  if (!cur_writer_->isOpened()) {
+  if (!motion_writer_->isOpened()) {
     cerr << "Cannot open VideoWriter" << endl;
     return;
   }
@@ -59,7 +58,7 @@ void VideoOutputNode::disable() {
     return;
   }
   double end_t = epoch_time();
-  cur_writer_ = nullptr;
+  motion_writer_ = nullptr;
   _ffmpeg_worker(fps_, cur_file_, cur_file_ + ".mp4");
   cur_file_ = "";
   enabled_ = false;
@@ -80,13 +79,13 @@ void VideoOutputNode::_worker() {
 
 void VideoOutputNode::process(cv::Mat frame, double prob) {
   std::lock_guard<std::mutex> lk(m_);
+  realtime_writer_->write(frame);
   if (!enabled_) {
 //    cerr << "Recorder is not enabled" << endl;
     return;
   }
   avg_prob_ = prob;
-  cur_writer_->write(frame);
-
+  motion_writer_->write(frame);
 }
 
 void VideoOutputNode::_ffmpeg_worker(int fps, std::string input, std::string output) {
@@ -129,6 +128,18 @@ VideoOutputNode::VideoOutputNode(std::string name,
       height_{height},
       out_dir{out_dir},
       file_format_{file_format} {
+  realtime_writer_ = make_shared<cv::VideoWriter>(
+      realtime_pipe_,
+      cv::CAP_GSTREAMER,
+      0,
+      fps_,
+      cv::Size{width_, height_}
+  );
+  cout << "Opening realtime pipeline [" << realtime_pipe_ << "]" << endl;
+  if (!realtime_writer_->isOpened()) {
+    cerr << "Cannot open realtime_writer_" << endl;
+    exit(1);
+  }
   worker_thread_ = thread(&VideoOutputNode::_worker, this);
   ff_thread_ = thread(&VideoOutputNode::_ff_gc, this);
   cout << "VideoOutputNode created" << endl;

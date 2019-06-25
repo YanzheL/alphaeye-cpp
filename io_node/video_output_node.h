@@ -27,8 +27,8 @@ class VideoOutputNode {
   ~VideoOutputNode();
 
   template<typename ...Args>
-  inline void put(Args...args) {
-    task_queue_.push(std::make_pair(args...));
+  inline bool put(Args...args) {
+    return task_queue_.push(std::make_pair(args...));
   }
 
   void enable();
@@ -54,31 +54,30 @@ class VideoOutputNode {
  protected:
 //  std::vector<VideoOutputNode *> output_nodes;
   bool enabled_ = false;
-  double t_enable_;
   int fps_;
   int width_;
   int height_;
   std::string file_format_;
   std::string cur_file_;
-
   std::thread worker_thread_;
   std::thread ff_thread_;
-
   std::mutex m_;
-
   bool stop_requested_ = false;
-
   double avg_prob_ = 0;
-
-  const std::string pipeline_format = " appsrc do-timestamp=true is-live=true format=time !"
-                                      " videoconvert !"
-                                      " video/x-raw, format=I420 !"
-                                      //                                      " videorate !"
-                                      //                                      " video/x-raw, framerate=%d/1 !"
-                                      " queue !"
-                                      " omxh264enc target-bitrate=15000000 control-rate=variable !"
-                                      " filesink sync=true location=%s ";
-  std::shared_ptr<cv::VideoWriter> cur_writer_;
+  const std::string motion_pipe_ = " appsrc do-timestamp=true is-live=true format=time !"
+                                   " videoconvert !"
+                                   " video/x-raw, format=I420 !"
+                                   " queue !"
+                                   " omxh264enc target-bitrate=15000000 control-rate=variable !"
+                                   " filesink sync=true location=%s ";
+  const std::string realtime_pipe_ = " appsrc do-timestamp=true is-live=true format=time !"
+                                     " videoconvert !"
+                                     " video/x-raw, format=BGR !"
+                                     " queue !"
+                                     " rtpvrawpay !"
+                                     " udpsink port=7758 host=localhost";
+  std::shared_ptr<cv::VideoWriter> motion_writer_;
+  std::shared_ptr<cv::VideoWriter> realtime_writer_;
   boost::lockfree::spsc_queue<std::pair<cv::Mat, double>, boost::lockfree::capacity<30>> task_queue_;
   boost::lockfree::spsc_queue<std::pair<int, std::string>, boost::lockfree::capacity<30>> ff_procs_;
 };
