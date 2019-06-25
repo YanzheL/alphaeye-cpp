@@ -19,7 +19,7 @@ namespace alphaeye {
 void DetectorController::_worker() {
   cout << "DetectorController worker thread started" << endl;
   int addrlen = sizeof(address);
-  const int bsize = 128;
+  const int bsize = 2;
   char buffer[bsize] = {0};
   fd_set master_set, working_set;
   FD_ZERO(&master_set);
@@ -78,9 +78,9 @@ void DetectorController::_worker() {
               break;
             }
             int len = rc;
-            printf("  %d bytes received, data = %s\n", len, buffer);
-            string response = _handle_data(buffer);
-            rc = send(i, response.c_str(), response.size(), 0);
+            printf("  %d bytes received, data = %d\n", len, buffer[0]);
+            _handle_data(buffer);
+            rc = send(i, buffer, 2, 0);
             memset(buffer, 0, bsize);
             if (rc < 0) {
               perror("  send() failed");
@@ -146,19 +146,24 @@ DetectorController::~DetectorController() {
   worker_thread_.join();
   cout << "DetectorController destroyed" << endl;
 }
-std::string DetectorController::_handle_data(std::string data) {
-  if (data == "enable") {
+void DetectorController::_handle_data(char *data) {
+  if (data[0] == 1u) {
     detector_->enable();
-    return "ok";
-  } else if (data == "disable") {
+    data[0] = 1;
+    data[1] = 1;
+  } else if (data[0] == 2u) {
     detector_->disable();
-    return "ok";
-  } else if (data == "is_enabled") {
-    return to_string((int) detector_->isEnabled());
-  } else if (data == "is_recording") {
-    return to_string((int) detector_->isMotionStarted());
+    data[0] = 2;
+    data[1] = 1;
+  } else if (data[0] == 3u) {
+    data[0] = 3;
+    data[1] = detector_->isEnabled();
+  } else if (data[0] == 4u) {
+    data[0] = 4;
+    data[1] = detector_->isMotionStarted();
   } else {
-    return "unknown";
+    data[0] = 0xf;
+    data[1] = 0xf;
   }
 }
 

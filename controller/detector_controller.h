@@ -22,18 +22,21 @@ class DetectorController {
 
  protected:
 
-  void _worker();
-
-  std::string _handle_data(std::string data);
-
- protected:
-
   int socket_fd_;
   sockaddr_in address;
   std::thread worker_thread_;
   bool stop_requested_ = false;
   std::shared_ptr<MotionDetector> detector_;
 
+  struct Msg_ {
+    uint8_t flag;
+  };
+
+ protected:
+
+  void _worker();
+
+  void _handle_data(char *data);
 };
 }
 
