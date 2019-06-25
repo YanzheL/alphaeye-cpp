@@ -37,12 +37,8 @@ void MotionDetector::disable() {
     cout << "Detector is already disabled!" << endl;
     return;
   }
-  if (motion_started_) {
-    _motionStop();
-  }
-//  _invokeHooks("detect_disable");
-  recorder_->disable();
   enabled_ = false;
+  has_motion_ = false;
   cout << "MotionDetector disabled" << endl;
 }
 

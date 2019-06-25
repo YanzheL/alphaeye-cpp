@@ -19,7 +19,6 @@ int main() {
 //  int height = 480;
 //  int fps = 30;
 //  int sample_interval = 2;
-
   std::shared_ptr<MotionDetector> detector = make_shared<BGSMotionDetector>(
       new VideoOutputNode("out0", fps, width, height, "../data"),
       sample_interval);

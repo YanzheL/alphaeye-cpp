@@ -15,77 +15,130 @@ namespace fs = boost::filesystem;
 
 namespace alphaeye {
 
-void VideoOutputNode::enable() {
-  std::lock_guard<std::mutex> lk(m_);
-  if (enabled_) {
-    cerr << "Recorder is already enabled" << endl;
-    return;
-  }
-  cout << "Enabling recorder..." << endl;
-  time_t ttm = std::time(nullptr);
-  tm *ltm = localtime(&ttm);
-  char buffer[100];
-  strftime(buffer, sizeof(buffer), file_format_.c_str(), ltm);
-  fs::path dir(out_dir);
-  fs::path file(buffer);
-  fs::path full_path = dir / file;
-  cur_file_ = full_path.string();
-  char pipeline_spec_buf[1000];
-//  sprintf(pipeline_spec_buf, motion_pipe_.c_str(), fps_, cur_file_.c_str());
-  sprintf(pipeline_spec_buf, motion_pipe_.c_str(), cur_file_.c_str());
-  std::string pipeline_spec{pipeline_spec_buf};
-  cout << "Opening motion recording pipeline [" << pipeline_spec << "]" << endl;
-  motion_writer_ = make_shared<cv::VideoWriter>(
-      pipeline_spec,
+VideoOutputNode::VideoOutputNode(
+    std::string name,
+    int fps,
+    int width,
+    int height,
+    std::string out_dir,
+    int cooldown_secs,
+    std::string file_format
+) : name{name},
+    fps_{fps},
+    width_{width},
+    height_{height},
+    out_dir{out_dir},
+    cooldown_init_val_{cooldown_secs * fps},
+    cooldown_guard_{30 * fps},
+    cur_cooldown_ct_{cooldown_init_val_},
+    file_format_{file_format} {
+  task_queue_.set_capacity(60);
+  realtime_queue_.set_capacity(3 * fps);
+  ff_procs_.set_capacity(30);
+  realtime_writer_ = make_shared<cv::VideoWriter>(
+      realtime_pipe_,
       cv::CAP_GSTREAMER,
       0,
       fps_,
       cv::Size{width_, height_}
   );
+  cout << "Opening realtime pipeline [" << realtime_pipe_ << "]" << endl;
+  if (!realtime_writer_->isOpened()) {
+    cerr << "Cannot open realtime_writer_" << endl;
+    exit(1);
+  }
+  worker_thread_ = thread(&VideoOutputNode::_worker, this);
+  realtime_thread_ = thread(&VideoOutputNode::_realtime_worker, this);
+  ff_thread_ = thread(&VideoOutputNode::_ff_gc, this);
+  cout << "VideoOutputNode created" << endl;
+}
 
-  if (!motion_writer_->isOpened()) {
-    cerr << "Cannot open VideoWriter" << endl;
+VideoOutputNode::~VideoOutputNode() {
+  stop_requested_ = true;
+  if (enabled_) {
+    _disable();
+  }
+  worker_thread_.join();
+  realtime_thread_.join();
+  ff_thread_.join();
+  cout << "VideoOutputNode destroyed" << endl;
+}
+
+void VideoOutputNode::enable() {
+  cur_cooldown_ct_ = cooldown_init_val_;
+  std::lock_guard<std::mutex> lk(m_);
+  cout << "Enabling recorder..." << endl;
+  if (enabled_) {
     return;
   }
+  cur_cooldown_guard_ = cooldown_guard_;
+  _make_cur_writer();
   cout << "Recorder enabled" << endl;
   enabled_ = true;
 }
 
-void VideoOutputNode::disable() {
-  std::lock_guard<std::mutex> lk(m_);
+void VideoOutputNode::_disable() {
+  cout << "Disabling recorder..." << endl;
   if (!enabled_) {
-    cout << "Recorder is already disabled!" << endl;
+    cerr << "Recorder is already disabled!" << endl;
     return;
   }
-  double end_t = epoch_time();
   motion_writer_ = nullptr;
   _ffmpeg_worker(fps_, cur_file_, cur_file_ + ".mp4");
   cur_file_ = "";
   enabled_ = false;
+  cur_cooldown_guard_ = cooldown_guard_;
+  cur_cooldown_ct_ = cooldown_init_val_;
 }
 
 void VideoOutputNode::_worker() {
-  cout << "Recorder worker thread started" << endl;
+  cout << "Recorder _worker thread started" << endl;
   while (true) {
-    std::pair<cv::Mat, double> data;
-    if (task_queue_.pop(data)) {
-      process(data.first, data.second);
+    cv::Mat data;
+    if (task_queue_.try_pop(data)) {
+      process(data);
     } else if (stop_requested_) {
       break;
+    } else {
+//      cout << "_worker blocking" << endl;
     }
   }
-  cout << "Recorder worker thread exited" << endl;
+  cout << "Recorder _worker thread exited" << endl;
 }
 
-void VideoOutputNode::process(cv::Mat frame, double prob) {
+void VideoOutputNode::_realtime_worker() {
+  cout << "Recorder _realtime_worker thread started" << endl;
+  while (true) {
+    cv::Mat data;
+    if (realtime_queue_.try_pop(data)) {
+      if (realtime_enabled_) realtime_writer_->write(data); // Record frame anyway.
+    } else if (stop_requested_) {
+      break;
+    } else {
+//      cout << "_realtime_worker blocking" << endl;
+    }
+  }
+  cout << "Recorder _realtime_worker thread exited" << endl;
+}
+
+void VideoOutputNode::process(cv::Mat frame) {
   std::lock_guard<std::mutex> lk(m_);
-  realtime_writer_->write(frame);
   if (!enabled_) {
-//    cerr << "Recorder is not enabled" << endl;
     return;
   }
-  avg_prob_ = prob;
-  motion_writer_->write(frame);
+  if (cur_cooldown_ct_) { // We are cooling down
+//      cout << "state 1, ct=" << cur_cooldown_ct_ << ", guard=" << cur_cooldown_guard_ << endl;
+    motion_writer_->write(frame);
+    --cur_cooldown_ct_;
+    if (cur_cooldown_guard_ != 0)--cur_cooldown_guard_;
+  } else if (cur_cooldown_guard_) { // Cooling down finished, but the duration is too short.
+//      cout << "state 2, ct=" << cur_cooldown_ct_ << ", guard=" << cur_cooldown_guard_ << endl;
+    cur_cooldown_ct_ = cooldown_init_val_; // Re-init counter, expecting new motions.
+    --cur_cooldown_guard_;
+  } else { // Cooling down finished, and min duration fulfilled. Now we can write video back to disk.
+//      cout << "state 3, ct=" << cur_cooldown_ct_ << ", guard=" << cur_cooldown_guard_ << endl;
+    _disable();
+  }
 }
 
 void VideoOutputNode::_ffmpeg_worker(int fps, std::string input, std::string output) {
@@ -110,46 +163,17 @@ void VideoOutputNode::_ffmpeg_worker(int fps, std::string input, std::string out
     exit(0);
   } else if (pid > 0) {
     cout << "Forked FFmpeg worker process, pid = " << pid << endl;
-    while (!ff_procs_.push(make_pair(pid, input)));
+    ff_procs_.push(make_pair(pid, input));
   } else {
     cerr << "FFmpeg worker process fork failed" << endl;
   }
-}
-
-VideoOutputNode::VideoOutputNode(std::string name,
-                                 int fps,
-                                 int width,
-                                 int height,
-                                 std::string out_dir,
-                                 std::string file_format)
-    : name{name},
-      fps_{fps},
-      width_{width},
-      height_{height},
-      out_dir{out_dir},
-      file_format_{file_format} {
-  realtime_writer_ = make_shared<cv::VideoWriter>(
-      realtime_pipe_,
-      cv::CAP_GSTREAMER,
-      0,
-      fps_,
-      cv::Size{width_, height_}
-  );
-  cout << "Opening realtime pipeline [" << realtime_pipe_ << "]" << endl;
-  if (!realtime_writer_->isOpened()) {
-    cerr << "Cannot open realtime_writer_" << endl;
-    exit(1);
-  }
-  worker_thread_ = thread(&VideoOutputNode::_worker, this);
-  ff_thread_ = thread(&VideoOutputNode::_ff_gc, this);
-  cout << "VideoOutputNode created" << endl;
 }
 
 void VideoOutputNode::_ff_gc() {
   cout << "FFmpeg GC thread started" << endl;
   while (true) {
     std::pair<int, string> data;
-    if (ff_procs_.pop(data)) {
+    if (ff_procs_.try_pop(data)) {
       int pid = data.first;
       string file = data.second;
       int status;
@@ -170,15 +194,40 @@ void VideoOutputNode::_ff_gc() {
   }
   cout << "FFmpeg GC thread exited" << endl;
 }
-
-VideoOutputNode::~VideoOutputNode() {
-  stop_requested_ = true;
-  if (enabled_) {
-    disable();
+void VideoOutputNode::_make_cur_writer() {
+  time_t ttm = std::time(nullptr);
+  tm *ltm = localtime(&ttm);
+  char buffer[100] = {0};
+  cout << "file_format_2=" << file_format_ << endl;
+  strftime(buffer, sizeof(buffer), file_format_.c_str(), ltm);
+  fs::path dir(out_dir);
+  fs::path file(buffer);
+  fs::path full_path = dir / file;
+  cur_file_ = full_path.string();
+//  char pipeline_spec_buf[1000];
+  stringstream pipeline_spec_buf;
+  pipeline_spec_buf << motion_pipe_ << cur_file_ << " ";
+  cout << "cur_file_=" << cur_file_ << endl;
+//  sprintf(pipeline_spec_buf, motion_pipe_.c_str(), cur_file_.c_str());
+  std::string pipeline_spec = pipeline_spec_buf.str();
+  cout << "Opening motion recording pipeline [" << pipeline_spec << "]" << endl;
+  motion_writer_ = make_shared<cv::VideoWriter>(
+      pipeline_spec,
+      cv::CAP_GSTREAMER,
+      0,
+      fps_,
+      cv::Size{width_, height_}
+  );
+  if (!motion_writer_->isOpened()) {
+    cerr << "Cannot open VideoWriter" << endl;
+    return;
   }
-  worker_thread_.join();
-  ff_thread_.join();
-  cout << "VideoOutputNode destroyed" << endl;
+}
+void VideoOutputNode::put(cv::Mat frame) {
+  bool rc = realtime_queue_.try_push(frame);
+//  if (!rc) cout << "realtime_put blocking" << endl;
+//  else cout << "realtime_put success" << endl;
+  task_queue_.push(frame);
 }
 
 }

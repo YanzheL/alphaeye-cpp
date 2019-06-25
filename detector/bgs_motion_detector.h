@@ -9,7 +9,8 @@
 #include "motion_detector.h"
 #include <opencv2/core/mat.hpp>
 #include <opencv2/bgsegm.hpp>
-#include "boost/lockfree/spsc_queue.hpp"
+#include <boost/lockfree/spsc_queue.hpp>
+#include <tbb/concurrent_queue.h>
 #include <thread>
 
 namespace alphaeye {
@@ -21,7 +22,6 @@ class BGSMotionDetector : public MotionDetector {
       VideoOutputNode *recorder,
       int sample_interval = 2,
       double threshold = 5,
-      int cooldown_secs = 5,
       bool enable_roi_drawing = false,
       int history = 50,
       int nmixtures = 5,
@@ -37,34 +37,21 @@ class BGSMotionDetector : public MotionDetector {
 
   void _analyze_worker();
 
-  void _recording_worker();
-
-  void _motionStop() override;
-
   void _analyze(const cv::Mat &frame);
 
  protected:
-
-  double total_time_;
-  double total_motion_duration_;
   int history_;
   double threshold_;
   int sample_interval_;
-  int cooldown_secs_;
   bool enable_roi_drawing_ = false;
-  double cur_start_;
-  double last_time_;
   cv::Mat last_result_;
   cv::Mat last_mask_;
-  double sum_prob_;
-  unsigned long cur_motion_frames_ = 1;
-  int sample_ct_;
+  int sample_ct_ = 0;
   bool stop_requested_ = false;
   std::shared_ptr<cv::BackgroundSubtractor> engine_;
   std::thread analyze_thread_;
-  std::thread record_thread_;
-  boost::lockfree::spsc_queue<cv::Mat, boost::lockfree::capacity<30>> task_queue_;
-  boost::lockfree::spsc_queue<cv::Mat, boost::lockfree::capacity<30>> record_queue_;
+//  boost::lockfree::spsc_queue<cv::Mat, boost::lockfree::capacity<30>> task_queue_;
+  tbb::concurrent_bounded_queue<cv::Mat> task_queue_;
 };
 
 }

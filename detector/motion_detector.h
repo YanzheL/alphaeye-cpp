@@ -21,7 +21,7 @@ class MotionDetector {
 
   virtual ~MotionDetector() = default;
 
-  inline bool isMotionStarted() { return motion_started_; }
+  inline bool isMotionStarted() { return has_motion_; }
 
   inline bool isEnabled() { return enabled_; }
 
@@ -33,11 +33,9 @@ class MotionDetector {
 
  protected:
 
-  virtual void _motionStop() = 0;
-
  protected:
 
-  bool motion_started_ = false;
+  bool has_motion_ = false;
   bool enabled_ = false;
   std::shared_ptr<VideoOutputNode> recorder_;
   std::mutex m_;
