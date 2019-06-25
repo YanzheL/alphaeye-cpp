@@ -40,4 +40,4 @@ add_executable(
         controller/detector_controller.h
 )
 
-target_link_libraries(alphaeye_cpp opencv_world pthread ${Boost_LIBRARIES} ${raspicam_CV_LIBS})
+target_link_libraries(alphaeye_cpp opencv_world pthread ${Boost_LIBRARIES} ${raspicam_CV_LIBS} tbb)
