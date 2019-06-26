@@ -34,7 +34,7 @@ void DetectorController::_worker() {
     memcpy(&working_set, &master_set, sizeof(master_set));
     rc = select(max_sd + 1, &working_set, NULL, NULL, &timeout);
     if (rc < 0) {
-      perror("  select() failed");
+      cerr << "\tselect() failed" << endl;
       continue;
     } else if (rc == 0) {
       continue;
@@ -44,52 +44,52 @@ void DetectorController::_worker() {
       if (FD_ISSET(i, &working_set)) {
         desc_ready -= 1;
         if (i == socket_fd_) {
-          printf("  Listening socket is readable\n");
+//          cout << "Listening socket is readable!" << endl;
           int conn;
           do {
             conn = accept(socket_fd_, NULL, NULL);
             if (conn < 0) {
               if (errno != EWOULDBLOCK) {
-                perror("  accept() failed");
+                cerr << "\taccept() failed." << endl;
                 stop_requested_ = true;
               }
               break;
             }
-            printf("  New incoming connection - %d\n", conn);
+            cout << "\tNew incoming connection [" << conn << "]." << endl;
             FD_SET(conn, &master_set);
             if (conn > max_sd)
               max_sd = conn;
           } while (conn != -1);
         } else {
-          printf("  Descriptor %d is readable\n", i);
+          cout << "\tDescriptor [" << i << "] is readable." << endl;
           close_conn = false;
           while (true) {
             rc = recv(i, buffer, sizeof(buffer), 0);
             if (rc < 0) {
               if (errno != EWOULDBLOCK) {
-                perror("  recv() failed");
+                cerr << "\trecv() failed." << endl;
                 close_conn = true;
               }
               break;
             }
             if (rc == 0) {
-              printf("  Connection closed\n");
+              cerr << "\tConnection closed." << endl;
               close_conn = true;
               break;
             }
             int len = rc;
-            printf("  %d bytes received, data = %d\n", len, buffer[0]);
+            printf("\t[%d] bytes received, data = [%d].\n", len, buffer[0]);
             _handle_data(buffer);
             rc = send(i, buffer, 2, 0);
             memset(buffer, 0, bsize);
             if (rc < 0) {
-              perror("  send() failed");
+              cerr << "\tsend() failed." << endl;
               close_conn = true;
               break;
             }
           }
           if (close_conn) {
-            cout << "Closing " << i << endl;
+//            cout << "Closing " << i << endl;
             close(i);
             FD_CLR(i, &master_set);
             if (i == max_sd) {
