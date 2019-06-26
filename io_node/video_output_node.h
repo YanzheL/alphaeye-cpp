@@ -13,6 +13,8 @@
 #include <thread>
 #include <tbb/concurrent_queue.h>
 
+#include <io_node/db_writer.h>
+
 namespace alphaeye {
 class VideoOutputNode {
  public:
@@ -28,7 +30,7 @@ class VideoOutputNode {
 
   void put(cv::Mat frame);
 
-  void enable();
+  void enable(double prob);
 
   inline bool isEnabled() { return enabled_; }
 
@@ -72,6 +74,9 @@ class VideoOutputNode {
   int cur_cooldown_guard_;
   bool stop_requested_ = false;
   bool realtime_enabled_ = true;
+  double cur_sum_prob_ = 0;
+  int cur_frame_ct_ = 0;
+  time_t cur_tm_start_;
   const std::string motion_pipe_ = " appsrc do-timestamp=true is-live=true format=time !"
                                    " videoconvert !"
                                    " video/x-raw, format=I420 !"
@@ -87,6 +92,8 @@ class VideoOutputNode {
   tbb::concurrent_bounded_queue<cv::Mat> task_queue_;
   tbb::concurrent_bounded_queue<cv::Mat> realtime_queue_;
   tbb::concurrent_bounded_queue<std::pair<int, std::string>> ff_procs_;
+
+  DBWriter dbWriter;
 };
 }
 

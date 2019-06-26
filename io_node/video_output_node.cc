@@ -31,7 +31,8 @@ VideoOutputNode::VideoOutputNode(
     cooldown_init_val_{cooldown_secs * fps},
     cooldown_guard_{30 * fps},
     cur_cooldown_ct_{cooldown_init_val_},
-    file_format_{file_format} {
+    file_format_{file_format},
+    dbWriter{"/etc/alphaeye.db"} {
   task_queue_.set_capacity(60);
   realtime_queue_.set_capacity(3 * fps);
   ff_procs_.set_capacity(30);
@@ -64,13 +65,16 @@ VideoOutputNode::~VideoOutputNode() {
   cout << "VideoOutputNode destroyed" << endl;
 }
 
-void VideoOutputNode::enable() {
-  cout << "Updating previous cooling down counter = " << cur_cooldown_ct_ << endl;
+void VideoOutputNode::enable(double prob) {
+//  cout << "Updating previous cooling down counter = " << cur_cooldown_ct_ << endl;
   cur_cooldown_ct_ = cooldown_init_val_;
   std::lock_guard<std::mutex> lk(m_);
+  cur_sum_prob_ += prob;
+  ++cur_frame_ct_;
   if (enabled_) {
     return;
   }
+  cur_tm_start_ = std::time(nullptr);
   cur_cooldown_guard_ = cooldown_guard_;
   _make_cur_writer();
   cout << "Recorder enabled" << endl;
@@ -83,12 +87,18 @@ void VideoOutputNode::_disable() {
     cerr << "Recorder is already disabled!" << endl;
     return;
   }
+  bool success =
+      dbWriter.write_video_info(cur_tm_start_, std::time(nullptr), cur_sum_prob_ / cur_frame_ct_, cur_file_ + ".mp4");
+  if (success)
+    cout << "Wrote video info to SQLite" << endl;
   motion_writer_ = nullptr;
   _ffmpeg_worker(fps_, cur_file_, cur_file_ + ".mp4");
   cur_file_ = "";
   enabled_ = false;
   cur_cooldown_guard_ = cooldown_guard_;
   cur_cooldown_ct_ = cooldown_init_val_;
+  cur_sum_prob_ = 0;
+  cur_frame_ct_ = 0;
 }
 
 void VideoOutputNode::_worker() {
@@ -194,12 +204,8 @@ void VideoOutputNode::_ff_gc() {
   cout << "FFmpeg GC thread exited" << endl;
 }
 void VideoOutputNode::_make_cur_writer() {
-  time_t ttm = std::time(nullptr);
-  tm *ltm = localtime(&ttm);
-  char buffer[100] = {0};
-  strftime(buffer, sizeof(buffer), file_format_.c_str(), ltm);
   fs::path dir(out_dir);
-  fs::path file(buffer);
+  fs::path file(lyz::format_time(std::time(nullptr), file_format_));
   fs::path full_path = dir / file;
   cur_file_ = full_path.string();
   stringstream pipeline_spec_buf;

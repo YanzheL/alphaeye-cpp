@@ -55,13 +55,21 @@ for_each_in_tuple(std::tuple<Tp...> &t, FuncT f) {
   for_each_in_tuple<I + 1, FuncT, Tp...>(t, f);
 }
 
+inline double epoch_time() {
+  return std::chrono::duration<double>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
+}
+
+template<typename STR_T>
+inline std::string format_time(time_t t, STR_T &&fmt) {
+  tm *ltm = localtime(&t);
+  char buffer[100] = {0};
+  strftime(buffer, sizeof(buffer), fmt.c_str(), ltm);
+  return {buffer};
+}
+
 }
 
 #define HAS_MEMBER_FUNC(type, name)                             \
 (std::is_member_function_pointer<decltype(&type::name)>::value)
-
-inline double epoch_time() {
-  return std::chrono::duration<double>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
-}
 
 #endif //LYZTOYS_UTIL_H

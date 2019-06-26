@@ -38,6 +38,15 @@ add_executable(
         io_node/video_output_node.h
         controller/detector_controller.cc
         controller/detector_controller.h
+        io_node/db_writer.cc io_node/db_writer.h
 )
 
-target_link_libraries(alphaeye_cpp opencv_world pthread ${Boost_LIBRARIES} ${raspicam_CV_LIBS} tbb)
+target_link_libraries(
+        alphaeye_cpp
+        opencv_world
+        pthread
+        ${Boost_LIBRARIES}
+        ${raspicam_CV_LIBS}
+        tbb
+        sqlite3
+)
