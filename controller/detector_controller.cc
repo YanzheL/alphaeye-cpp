@@ -55,13 +55,13 @@ void DetectorController::_worker() {
               }
               break;
             }
-            cout << "\tNew incoming connection [" << conn << "]." << endl;
+//            cout << "\tNew incoming connection [" << conn << "]." << endl;
             FD_SET(conn, &master_set);
             if (conn > max_sd)
               max_sd = conn;
           } while (conn != -1);
         } else {
-          cout << "\tDescriptor [" << i << "] is readable." << endl;
+//          cout << "\tDescriptor [" << i << "] is readable." << endl;
           close_conn = false;
           while (true) {
             rc = recv(i, buffer, sizeof(buffer), 0);
@@ -73,7 +73,7 @@ void DetectorController::_worker() {
               break;
             }
             if (rc == 0) {
-              cerr << "\tConnection closed." << endl;
+//              cerr << "\tConnection closed." << endl;
               close_conn = true;
               break;
             }
