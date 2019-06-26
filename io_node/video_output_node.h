@@ -84,9 +84,19 @@ class VideoOutputNode {
                                    " omxh264enc target-bitrate=17000000 control-rate=variable !"
                                    " filesink sync=true location=";
   const std::string realtime_pipe_ = " appsrc !"
-                                     " queue !"
+                                     " tee name=t"
+                                     " t. ! queue !"
                                      " rtpvrawpay !"
-                                     " udpsink port=7758 host=127.0.0.1 ";
+                                     " udpsink port=7758 host=127.0.0.1"
+                                     " t. ! queue !"
+                                     " videoconvert !"
+                                     " video/x-raw, format=I420 !"
+                                     " queue !"
+                                     " omxh264enc target-bitrate=17000000 control-rate=variable !"
+                                     " h264parse !"
+                                     " queue !"
+                                     " flvmux !"
+                                     " rtmpsink location=\"rtmp://rtmp-host/live/mystream live=1\" ";
   std::shared_ptr<cv::VideoWriter> motion_writer_;
   std::shared_ptr<cv::VideoWriter> realtime_writer_;
   tbb::concurrent_bounded_queue<cv::Mat> task_queue_;
