@@ -11,14 +11,14 @@ using namespace cv;
 using namespace std;
 
 int main() {
-  int width = 1280;
-  int height = 720;
+//  int width = 1280;
+//  int height = 720;
+//  int fps = 24;
+//  int sample_interval = 10;
+  int width = 640;
+  int height = 480;
   int fps = 24;
-  int sample_interval = 10;
-//  int width = 640;
-//  int height = 480;
-//  int fps = 30;
-//  int sample_interval = 2;
+  int sample_interval = 3;
   std::shared_ptr<MotionDetector> detector = make_shared<BGSMotionDetector>(
       new VideoOutputNode("out0", fps, width, height, "/home/pi/alphaeye-cpp/data"),
       sample_interval);

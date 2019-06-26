@@ -65,9 +65,9 @@ VideoOutputNode::~VideoOutputNode() {
 }
 
 void VideoOutputNode::enable() {
+  cout << "Updating previous cooling down counter = " << cur_cooldown_ct_ << endl;
   cur_cooldown_ct_ = cooldown_init_val_;
   std::lock_guard<std::mutex> lk(m_);
-  cout << "Enabling recorder..." << endl;
   if (enabled_) {
     return;
   }
@@ -160,7 +160,7 @@ void VideoOutputNode::_ffmpeg_worker(int fps, std::string input, std::string out
         NULL
     );
     cout << "Unexpected execlp() result, ret = " << ret << endl;
-    exit(0);
+    exit(1);
   } else if (pid > 0) {
     cout << "Forked FFmpeg worker process, pid = " << pid << endl;
     ff_procs_.push(make_pair(pid, input));
@@ -188,7 +188,7 @@ void VideoOutputNode::_ff_gc() {
     } else if (stop_requested_) {
       break;
     } else {
-      std::this_thread::sleep_for(std::chrono::seconds(3));
+      std::this_thread::sleep_for(std::chrono::seconds(5));
     }
   }
   cout << "FFmpeg GC thread exited" << endl;
@@ -216,7 +216,7 @@ void VideoOutputNode::_make_cur_writer() {
   );
   if (!motion_writer_->isOpened()) {
     cerr << "Cannot open VideoWriter" << endl;
-    return;
+    exit(1);
   }
 }
 void VideoOutputNode::put(cv::Mat frame) {
