@@ -65,7 +65,7 @@ VideoOutputNode::~VideoOutputNode() {
   cout << "VideoOutputNode destroyed" << endl;
 }
 
-void VideoOutputNode::enable(double prob) {
+void VideoOutputNode::notify(double prob) {
 //  cout << "Updating previous cooling down counter = " << cur_cooldown_ct_ << endl;
   cur_cooldown_ct_ = cooldown_init_val_;
   std::lock_guard<std::mutex> lk(m_);
@@ -76,7 +76,7 @@ void VideoOutputNode::enable(double prob) {
   }
   cur_tm_start_ = std::time(nullptr);
   cur_cooldown_guard_ = cooldown_guard_;
-  _make_cur_writer();
+  _make_new_video_writer();
   cout << "Recorder enabled" << endl;
   enabled_ = true;
 }
@@ -203,7 +203,7 @@ void VideoOutputNode::_ff_gc() {
   }
   cout << "FFmpeg GC thread exited" << endl;
 }
-void VideoOutputNode::_make_cur_writer() {
+void VideoOutputNode::_make_new_video_writer() {
   fs::path dir(out_dir);
   fs::path file(lyz::format_time(std::time(nullptr), file_format_));
   fs::path full_path = dir / file;

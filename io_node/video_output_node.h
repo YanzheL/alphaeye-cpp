@@ -30,7 +30,7 @@ class VideoOutputNode {
 
   void put(cv::Mat frame);
 
-  void enable(double prob);
+  void notify(double prob);
 
   inline bool isEnabled() { return enabled_; }
 
@@ -52,7 +52,7 @@ class VideoOutputNode {
 
   void _ff_gc();
 
-  void _make_cur_writer();
+  void _make_new_video_writer();
 
   void _disable();
 

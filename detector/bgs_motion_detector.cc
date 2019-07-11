@@ -57,7 +57,7 @@ void BGSMotionDetector::_analyze(const cv::Mat &frame) {
   if (prob > threshold_) {
     cout << "Motion detected, prob = " << prob << endl;
     has_motion_ = true;
-    recorder_->enable(prob);
+    recorder_->notify(prob);
   } else if (has_motion_) {
     has_motion_ = false;
   }
